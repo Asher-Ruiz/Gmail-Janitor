@@ -10,12 +10,65 @@ const CATEGORIES: Record<string, string> = {
 };
 
 export const SLOWDOWN_NOTE =
-  "Google asked us to slow down, so we’re pausing briefly. This is normal.";
+  "Google asked us to slow down, so we’re pausing and going a little slower. This is normal.";
 let throttleListener: ((ms: number) => void) | null = null;
 /** Lets the UI find out when Gmail throttles us (pass null to stop listening). */
 export const onThrottle = (fn: ((ms: number) => void) | null) => {
   throttleListener = fn;
 };
+
+// --- Adaptive pacing ---------------------------------------------------------
+// All requests share one speed limit. When Gmail throttles, the limit drops sharply and everything
+// pauses. The app then holds slow for a quiet window, climbs back up gradually, and after a long calm
+// stretch raises its ceiling to test whether Gmail will allow more. That gives a fast / slow / fast
+// cycle with long gaps between throttles. Tune the numbers below if throttling is too frequent.
+const START_RATE = 6; // requests per second
+const MAX_RATE = 10;
+const MIN_RATE = 2;
+const HOLD_MS = 10000; // stay slow this long after a throttle before climbing again
+const PROBE_MS = 30000; // after this long without a throttle, test a ceiling 1/sec higher
+const pacer = {
+  rate: START_RATE,
+  ceiling: MAX_RATE,
+  nextSlot: 0,
+  pausedUntil: 0,
+  streak: 0,
+  lastCut: 0,
+  lastProbe: 0,
+};
+
+async function paced() {
+  const now = Date.now();
+  const start = Math.max(now, pacer.nextSlot, pacer.pausedUntil);
+  pacer.nextSlot = start + 1000 / pacer.rate;
+  if (start > now) await sleep(start - now);
+}
+
+function speedUp() {
+  const now = Date.now();
+  if (now - pacer.lastCut < HOLD_MS) return; // give Google a quiet window first
+  if (now - pacer.lastProbe > PROBE_MS && pacer.ceiling < MAX_RATE) {
+    pacer.ceiling = Math.min(MAX_RATE, pacer.ceiling + 1); // calm for a while: test a higher limit
+    pacer.lastProbe = now;
+  }
+  if (++pacer.streak >= 20 && pacer.rate < pacer.ceiling) {
+    pacer.rate = Math.min(pacer.ceiling, pacer.rate + 0.5);
+    pacer.streak = 0;
+  }
+}
+
+function slowDown(waitMs: number) {
+  const now = Date.now();
+  pacer.pausedUntil = Math.max(pacer.pausedUntil, now + waitMs); // pause everyone, not just this request
+  if (now - pacer.lastCut > 5000) {
+    // Several in-flight requests usually fail together, so count them as one event.
+    pacer.lastCut = now;
+    pacer.lastProbe = now;
+    pacer.ceiling = Math.max(MIN_RATE, pacer.rate * 0.85); // the limit is roughly here...
+    pacer.rate = Math.max(MIN_RATE, pacer.rate / 2); // ...so drop well below it
+    pacer.streak = 0;
+  }
+}
 
 export type Sender = {
   address: string;
@@ -52,6 +105,7 @@ export async function api<T>(
   init?: { method: "POST"; body: unknown },
 ): Promise<T> {
   for (let attempt = 0; ; attempt++) {
+    await paced();
     let res: Response;
     try {
       res = await fetch(`${API}${path}`, {
@@ -72,6 +126,7 @@ export async function api<T>(
       continue;
     }
     if (res.ok) {
+      speedUp();
       const text = await res.text(); // some Gmail calls (batchModify) return an empty body
       return (text ? JSON.parse(text) : undefined) as T;
     }
@@ -89,7 +144,10 @@ export async function api<T>(
     }
     const retryAfter = Number(res.headers.get("Retry-After")) * 1000;
     const wait = retryAfter || backoff(attempt);
-    if (rateLimited) throttleListener?.(wait);
+    if (rateLimited) {
+      slowDown(wait);
+      throttleListener?.(wait);
+    }
     await sleep(wait);
   }
 }
