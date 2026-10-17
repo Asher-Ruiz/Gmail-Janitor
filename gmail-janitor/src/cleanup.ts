@@ -10,6 +10,7 @@ async function listIds(
   token: string,
   q: string,
   signal: AbortSignal,
+  onFound?: (n: number) => void,
 ): Promise<string[]> {
   const ids: string[] = [];
   let pageToken = "";
@@ -22,6 +23,7 @@ async function listIds(
       nextPageToken?: string;
     }>(token, `/messages?${params}`);
     ids.push(...(page.messages ?? []).map((m) => m.id));
+    onFound?.(ids.length);
     pageToken = page.nextPageToken ?? "";
   } while (pageToken);
   return ids;
@@ -72,4 +74,19 @@ export async function trashMessages(
     });
     onProgress(Math.min(i + 1000, ids.length), ids.length);
   }
+}
+
+/**
+ * Finds everything received before `cutoffSeconds` (Unix time). Starred and important mail, drafts,
+ * and mail the user sent are always left alone. Changes nothing.
+ */
+export async function buildDatePlan(
+  token: string,
+  cutoffSeconds: number,
+  unreadOnly: boolean,
+  onFound: (n: number) => void,
+  signal: AbortSignal,
+): Promise<Plan> {
+  const q = `before:${cutoffSeconds} -is:starred -is:important -in:sent -in:drafts${unreadOnly ? " is:unread" : ""}`;
+  return { ids: await listIds(token, q, signal, onFound), perSender: [] };
 }

@@ -1,10 +1,13 @@
+import { useState } from "react";
 import type { Plan } from "./cleanup";
-import Progress from "./progress";
+import Progress from "./Progress";
 import { SLOWDOWN_NOTE } from "./scan";
 
 export type Stage = "review" | "planning" | "confirm" | "working" | "done";
 
 type Props = {
+  mode: "senders" | "date";
+  dateLabel: string;
   stage: Exclude<Stage, "review">;
   plan: Plan | null;
   work: { done: number; total: number };
@@ -19,7 +22,54 @@ type Props = {
   onFinish: () => void;
 };
 
+/** Date cleanups touch a lot of mail, so the red button stays locked until the person ticks a box. */
+function DateConfirm({
+  total,
+  dateLabel,
+  includeRead,
+  onConfirm,
+  onBack,
+}: {
+  total: number;
+  dateLabel: string;
+  includeRead: boolean;
+  onConfirm: () => void;
+  onBack: () => void;
+}) {
+  const [sure, setSure] = useState(false);
+  return (
+    <div className="center">
+      <h1>Move {total.toLocaleString()} emails to Trash?</h1>
+      <p className="lead">
+        These are all the {includeRead ? "" : "unread "}emails you received
+        before {dateLabel}. Starred and important emails, drafts, and emails you
+        sent are left alone. You can restore anything from Trash for 30 days.
+      </p>
+      <label className="opt sure">
+        <input
+          type="checkbox"
+          checked={sure}
+          onChange={(e) => setSure(e.target.checked)}
+        />
+        <span>
+          I understand that {total.toLocaleString()} emails will move to Trash.
+        </span>
+      </label>
+      <div className="actions">
+        <button className="btn ghost" onClick={onBack}>
+          Go back
+        </button>
+        <button className="btn danger" disabled={!sure} onClick={onConfirm}>
+          Move {total.toLocaleString()} to Trash
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Clean({
+  mode,
+  dateLabel,
   stage,
   plan,
   work,
@@ -33,18 +83,26 @@ export default function Clean({
   onCancel,
   onFinish,
 }: Props) {
+  const note = slowdown ? SLOWDOWN_NOTE : undefined;
+
   if (stage === "planning") {
     return (
       <div className="center">
         <h1>Counting what would move</h1>
-        <Progress
-          done={work.done}
-          total={work.total}
-          startedAt={startedAt}
-          verb="Checked"
-          noun="senders"
-          note={slowdown ? SLOWDOWN_NOTE : undefined}
-        />
+        {mode === "date" ? (
+          <p className="hint">
+            Found {work.done.toLocaleString()} emails so far…
+          </p>
+        ) : (
+          <Progress
+            done={work.done}
+            total={work.total}
+            startedAt={startedAt}
+            verb="Checked"
+            noun="senders"
+            note={note}
+          />
+        )}
         <button className="btn ghost" onClick={onCancel}>
           Cancel
         </button>
@@ -59,13 +117,25 @@ export default function Clean({
         <div className="center">
           <h1>Nothing to move</h1>
           <p className="lead">
-            None of the selected senders have {includeRead ? "" : "unread "}mail
-            that isn’t starred.
+            {mode === "date"
+              ? `There are no ${includeRead ? "" : "unread "}emails from before ${dateLabel} that aren’t starred or important.`
+              : `None of the selected senders have ${includeRead ? "" : "unread "}mail that isn’t starred.`}
           </p>
           <button className="btn" onClick={onBack}>
             Go back
           </button>
         </div>
+      );
+    }
+    if (mode === "date") {
+      return (
+        <DateConfirm
+          total={total}
+          dateLabel={dateLabel}
+          includeRead={includeRead}
+          onConfirm={onConfirm}
+          onBack={onBack}
+        />
       );
     }
     return (
@@ -112,7 +182,7 @@ export default function Clean({
           startedAt={startedAt}
           verb="Moved"
           noun="messages"
-          note={slowdown ? SLOWDOWN_NOTE : undefined}
+          note={note}
         />
         <button className="btn ghost" onClick={onCancel}>
           Stop
@@ -135,7 +205,7 @@ export default function Clean({
         </p>
       )}
       <button className="btn" onClick={onFinish}>
-        Scan the next batch
+        {mode === "date" ? "Back to start" : "Scan the next batch"}
       </button>
     </div>
   );

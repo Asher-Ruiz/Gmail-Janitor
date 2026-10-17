@@ -379,6 +379,89 @@ select {
   font-size: 0.9375rem;
 }
 
+.guide {
+  font-size: 1.125rem;
+}
+.guide .lead {
+  max-width: none;
+}
+.guide-top {
+  display: block;
+  margin: 0 0 1rem;
+  text-align: left;
+}
+.callout {
+  background: var(--tint);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin: 1.5rem 0;
+}
+.callout h2 {
+  margin-top: 0;
+}
+.callout ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+.callout li {
+  margin-bottom: 0.6rem;
+}
+.key {
+  background: var(--surface);
+  color: var(--primary);
+  padding: 0.05rem 0.5rem;
+  border-radius: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.see {
+  color: var(--muted);
+  font-size: 1rem;
+}
+.shot {
+  margin: 0.75rem 0 0;
+}
+.shot img {
+  display: block;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.shot-empty {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  padding: 1rem;
+  text-align: center;
+  color: var(--muted);
+  background: var(--surface);
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+}
+.shot figcaption {
+  color: var(--muted);
+  font-size: 0.9375rem;
+  margin-top: 0.35rem;
+}
+.quick {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 1rem 0;
+}
+.sure {
+  justify-content: center;
+  max-width: 420px;
+  margin: 1.5rem auto 0;
+  text-align: left;
+}
+.link-block {
+  display: block;
+  margin-top: 1.5rem;
+  font-size: 0.9375rem;
+}
+
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;

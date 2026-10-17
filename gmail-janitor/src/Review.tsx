@@ -6,7 +6,6 @@ type Props = {
   selected: Set<string>;
   onChange: (next: Set<string>) => void;
   includeRead: boolean;
-  onIncludeRead: (v: boolean) => void;
   onClean: () => void;
   onRescan: () => void;
 };
@@ -16,7 +15,6 @@ export default function Review({
   selected,
   onChange,
   includeRead,
-  onIncludeRead,
   onClean,
   onRescan,
 }: Props) {
@@ -100,16 +98,10 @@ export default function Review({
         ))}
       </ul>
 
-      <label className="opt">
-        <input
-          type="checkbox"
-          checked={includeRead}
-          onChange={(e) => onIncludeRead(e.target.checked)}
-        />
-        <span>
-          Also include mail I’ve already read. Starred mail is never moved.
-        </span>
-      </label>
+      <p className="hint">
+        Cleaning moves {includeRead ? "all" : "only unread"} mail from the
+        senders you check. Starred mail is never moved.
+      </p>
 
       <div className="bar">
         <span>

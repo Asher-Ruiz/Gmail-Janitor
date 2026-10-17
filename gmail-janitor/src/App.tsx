@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getProfile, requestToken, type Profile } from "./auth";
 import {
   getUnreadTotal,
@@ -8,92 +8,21 @@ import {
   SLOWDOWN_NOTE,
   type Sender,
 } from "./scan";
-import Progress from "./progress";
-import Review from "./review";
-import Clean, { type Stage } from "./clean";
-import { buildPlan, trashMessages, type Plan } from "./cleanup";
+import Progress from "./Progress";
+import Review from "./Review";
+import Clean, { type Stage } from "./Clean";
+import { buildDatePlan, buildPlan, trashMessages, type Plan } from "./cleanup";
+import Guide from "./Guide";
+import DateClean from "./DateClean";
+import ScopeToggle, { type Scope } from "./ScopeToggle";
 
 const KEY = "gmail-janitor-client-id"; // a Client ID is public, so localStorage is fine
 const ORIGIN = window.location.origin;
-const ID_PATTERN = /^[\w-]+\.apps\.googleusercontent\.com$/;
-
-const A = ({ href, children }: { href: string; children: ReactNode }) => (
-  <a href={href} target="_blank" rel="noreferrer">
-    {children}
-  </a>
-);
-
-function CopyChip({ text }: { text: string }) {
-  const [done, setDone] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(text);
-    setDone(true);
-    setTimeout(() => setDone(false), 1500);
-  };
-  return (
-    <button className="chip" onClick={copy}>
-      <code>{text}</code>
-      <span>{done ? "Copied" : "Copy"}</span>
-    </button>
-  );
-}
-
-const STEPS: { title: string; body: ReactNode }[] = [
-  {
-    title: "Create a project",
-    body: (
-      <>
-        Open the{" "}
-        <A href="https://console.cloud.google.com/projectcreate">
-          Google Cloud Console
-        </A>{" "}
-        and create a project. Name it anything, like “Gmail Janitor”.
-      </>
-    ),
-  },
-  {
-    title: "Turn on the Gmail API",
-    body: (
-      <>
-        Open{" "}
-        <A href="https://console.cloud.google.com/apis/library/gmail.googleapis.com">
-          the Gmail API page
-        </A>
-        , check that your new project is selected, and click <b>Enable</b>.
-      </>
-    ),
-  },
-  {
-    title: "Set up the consent screen",
-    body: (
-      <>
-        Open{" "}
-        <A href="https://console.cloud.google.com/auth/overview">
-          Google Auth Platform
-        </A>{" "}
-        and click <b>Get started</b>. Choose <b>External</b> as the audience.
-        Then open <b>Audience</b> and add your own Gmail address as a{" "}
-        <b>test user</b>.
-      </>
-    ),
-  },
-  {
-    title: "Create your Client ID",
-    body: (
-      <>
-        Open <b>Clients</b>, click <b>Create client</b>, and choose{" "}
-        <b>Web application</b>. Under <b>Authorized JavaScript origins</b>, add:{" "}
-        <CopyChip text={ORIGIN} />
-      </>
-    ),
-  },
-];
 
 export default function App() {
   const [clientId, setClientId] = useState(
     () => localStorage.getItem(KEY) ?? "",
   );
-  const [draft, setDraft] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -108,12 +37,25 @@ export default function App() {
   const abort = useRef<AbortController | null>(null);
   const [stage, setStage] = useState<Stage>("review");
   const [plan, setPlan] = useState<Plan | null>(null);
-  const [includeRead, setIncludeRead] = useState(false);
+  const [scanScope, setScanScope] = useState<Scope>("all");
+  const [dateScope, setDateScope] = useState<Scope>("all");
   const [work, setWork] = useState({ done: 0, total: 0 });
   const [moved, setMoved] = useState(0);
   const [startedAt, setStartedAt] = useState(0);
   const [slowdown, setSlowdown] = useState(false);
   const [unreadTotal, setUnreadTotal] = useState<number | null>(null);
+  const [mode, setMode] = useState<"senders" | "date">("senders");
+  const [dateLabel, setDateLabel] = useState("");
+  const [route, setRoute] = useState(() => window.location.hash);
+
+  useEffect(() => {
+    const onHash = () => {
+      setRoute(window.location.hash);
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   const loadUnread = (t: string) =>
     getUnreadTotal(t).then(setUnreadTotal, () => setUnreadTotal(null));
@@ -132,16 +74,16 @@ export default function App() {
     };
   };
 
-  const saveId = () => {
-    const id = draft.trim();
+  const saveId = (id: string) => {
     localStorage.setItem(KEY, id);
     setClientId(id);
+    window.location.hash = "/";
   };
   const resetId = () => {
     localStorage.removeItem(KEY);
     setClientId("");
-    setDraft("");
     setProfile(null);
+    setMode("senders");
     setError("");
     setToken("");
     setUnreadTotal(null);
@@ -173,6 +115,7 @@ export default function App() {
   const prepare = async () => {
     const ctl = new AbortController();
     abort.current = ctl;
+    setMode("senders");
     setStage("planning");
     setError("");
     setExpired(false);
@@ -184,7 +127,7 @@ export default function App() {
         await buildPlan(
           token,
           [...selected],
-          includeRead,
+          scanScope === "all",
           (done, total) => setWork({ done, total }),
           ctl.signal,
         ),
@@ -193,6 +136,44 @@ export default function App() {
     } catch (e) {
       fail(e);
       setStage("review");
+    } finally {
+      stopWatching();
+    }
+  };
+  const prepareDate = async (date: string) => {
+    const when = new Date(`${date}T00:00:00`); // midnight in the user's own time zone
+    const ctl = new AbortController();
+    abort.current = ctl;
+    setMode("date");
+    setDateLabel(
+      when.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+    );
+    setStage("planning");
+    setError("");
+    setExpired(false);
+    setWork({ done: 0, total: 0 });
+    setStartedAt(Date.now());
+    const stopWatching = watchThrottle();
+    try {
+      const cutoff = Math.floor(when.getTime() / 1000);
+      setPlan(
+        await buildDatePlan(
+          token,
+          cutoff,
+          dateScope === "unread",
+          (n) => setWork({ done: n, total: 0 }),
+          ctl.signal,
+        ),
+      );
+      setStage("confirm");
+    } catch (e) {
+      fail(e);
+      setStage("review");
+      setMode("senders");
     } finally {
       stopWatching();
     }
@@ -237,6 +218,7 @@ export default function App() {
     setSenders(null);
     setSelected(new Set());
     setPlan(null);
+    setMode("senders");
     setStage("review");
   };
   const scan = async () => {
@@ -254,7 +236,14 @@ export default function App() {
         setProgress({ done, total });
       };
       setSenders(
-        await scanInbox(token, limit, onProgress, ctl.signal, setFound),
+        await scanInbox(
+          token,
+          limit,
+          scanScope === "unread",
+          onProgress,
+          ctl.signal,
+          setFound,
+        ),
       );
       setSelected(new Set());
     } catch (e) {
@@ -268,64 +257,30 @@ export default function App() {
     }
   };
 
-  const idLooksValid = ID_PATTERN.test(draft.trim());
+  const showGuide = !clientId || route === "#/guide";
 
   return (
     <main className="page">
       <header className="brand">Gmail Janitor</header>
 
-      {!clientId && (
-        <section className="card">
-          <h1>Let’s connect your Gmail</h1>
-          <p className="lead">
-            Your mail stays between your browser and Google. Nothing is uploaded
-            anywhere else. Setup takes about five minutes and you only do it
-            once.
-          </p>
-          <ol className="steps">
-            {STEPS.map((s) => (
-              <li key={s.title}>
-                <h2>{s.title}</h2>
-                <p>{s.body}</p>
-              </li>
-            ))}
-            <li>
-              <h2>Paste your Client ID</h2>
-              <p>
-                Copy the Client ID from the confirmation window and paste it
-                here.
-              </p>
-              <div className="row">
-                <input
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  placeholder="1234567890-abc123.apps.googleusercontent.com"
-                  aria-label="Client ID"
-                />
-                <button
-                  className="btn"
-                  disabled={!idLooksValid}
-                  onClick={saveId}
-                >
-                  Save Client ID
-                </button>
-              </div>
-              {draft && !idLooksValid && (
-                <p className="hint">
-                  A Client ID ends in .apps.googleusercontent.com
-                </p>
-              )}
-            </li>
-          </ol>
-        </section>
+      {showGuide && (
+        <Guide
+          hasClientId={Boolean(clientId)}
+          origin={ORIGIN}
+          onSave={saveId}
+          onBack={() => {
+            window.location.hash = "/";
+          }}
+        />
       )}
 
-      {clientId && !profile && (
+      {!showGuide && clientId && !profile && (
         <section className="card center">
           <h1>Ready when you are</h1>
           <p className="lead">
-            Sign in with Google and approve access. You can revoke it anytime in
-            your Google account.
+            Google will ask you to approve access, and may show a warning screen
+            first. That is normal for a connection you created yourself. You can
+            remove access anytime in your Google account.
           </p>
           <button className="btn" onClick={connect} disabled={busy}>
             {busy ? "Waiting for Google…" : "Sign in with Google"}
@@ -336,24 +291,33 @@ export default function App() {
               authorized origin is {ORIGIN}.
             </p>
           )}
+          <a className="link-block" href="#/guide">
+            Not sure what to expect? See the step-by-step guide
+          </a>
           <button className="link" onClick={resetId}>
             Use a different Client ID
           </button>
         </section>
       )}
 
-      {profile && !senders && (
+      {!showGuide && profile && !senders && mode === "senders" && (
         <section className="card center">
           <h1>You’re connected</h1>
           <p className="lead">
             Signed in as <b>{profile.emailAddress}</b>. Scanning reads each
-            unread message’s sender and labels, never its text.
+            message’s sender and labels, never its text.
           </p>
-          {unreadTotal !== null && !scanning && (
+          {!scanning && scanScope === "unread" && unreadTotal !== null && (
             <p className="lead">
               You have about <b>{unreadTotal.toLocaleString()}</b> unread
               messages. We’ll clear them in rounds: scan a batch, remove what
               you don’t want, then scan the next.
+            </p>
+          )}
+          {!scanning && scanScope === "all" && (
+            <p className="lead">
+              We’ll work in rounds: scan a batch of your newest mail, remove
+              what you don’t want, then scan the next.
             </p>
           )}
           {scanning ? (
@@ -361,7 +325,7 @@ export default function App() {
               <h2 className="phase">
                 {progress.total
                   ? "Step 2 of 2: reading each sender"
-                  : "Step 1 of 2: finding your unread messages"}
+                  : `Step 1 of 2: finding your ${scanScope === "unread" ? "unread " : ""}messages`}
               </h2>
               {progress.total ? (
                 <Progress
@@ -385,6 +349,7 @@ export default function App() {
             </>
           ) : (
             <>
+              <ScopeToggle value={scanScope} onChange={setScanScope} />
               <label className="pick">
                 Scan the newest{" "}
                 <select
@@ -395,7 +360,7 @@ export default function App() {
                   <option value={5000}>5,000</option>
                   <option value={10000}>10,000</option>
                 </select>{" "}
-                unread messages
+                {scanScope === "unread" ? "unread " : ""}messages
               </label>
               <button
                 className="btn"
@@ -417,28 +382,76 @@ export default function App() {
         </section>
       )}
 
-      {profile && senders && (
+      {!showGuide &&
+        profile &&
+        !senders &&
+        !scanning &&
+        mode === "senders" &&
+        stage === "review" && (
+          <DateClean
+            scope={dateScope}
+            onScope={setDateScope}
+            onPrepare={prepareDate}
+          />
+        )}
+
+      {!showGuide && profile && mode === "date" && stage !== "review" && (
+        <section className="card">
+          <Clean
+            mode="date"
+            dateLabel={dateLabel}
+            stage={stage}
+            plan={plan}
+            work={work}
+            moved={moved}
+            includeRead={dateScope === "all"}
+            startedAt={startedAt}
+            slowdown={slowdown}
+            unreadTotal={dateScope === "unread" ? unreadTotal : null}
+            onConfirm={run}
+            onBack={() => {
+              setStage("review");
+              setMode("senders");
+            }}
+            onCancel={() => abort.current?.abort()}
+            onFinish={finish}
+          />
+          {error && (
+            <p className="error" role="alert">
+              {error}{" "}
+              {expired && (
+                <button className="link inline" onClick={connect}>
+                  Sign in again
+                </button>
+              )}
+            </p>
+          )}
+        </section>
+      )}
+
+      {!showGuide && profile && senders && mode === "senders" && (
         <section className="card">
           {stage === "review" ? (
             <Review
               senders={senders}
               selected={selected}
               onChange={setSelected}
-              includeRead={includeRead}
-              onIncludeRead={setIncludeRead}
+              includeRead={scanScope === "all"}
               onClean={prepare}
               onRescan={() => setSenders(null)}
             />
           ) : (
             <Clean
+              mode="senders"
+              dateLabel=""
               stage={stage}
               plan={plan}
               work={work}
               moved={moved}
-              includeRead={includeRead}
+              includeRead={scanScope === "all"}
               startedAt={startedAt}
               slowdown={slowdown}
-              unreadTotal={unreadTotal}
+              unreadTotal={scanScope === "unread" ? unreadTotal : null}
               onConfirm={run}
               onBack={() => setStage("review")}
               onCancel={() => abort.current?.abort()}

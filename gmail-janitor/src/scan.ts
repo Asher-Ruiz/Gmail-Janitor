@@ -24,7 +24,7 @@ export const onThrottle = (fn: ((ms: number) => void) | null) => {
 // cycle with long gaps between throttles. Tune the numbers below if throttling is too frequent.
 const START_RATE = 6; // requests per second
 const MAX_RATE = 10;
-const MIN_RATE = 2;
+const MIN_RATE = 1.5;
 const HOLD_MS = 10000; // stay slow this long after a throttle before climbing again
 const PROBE_MS = 30000; // after this long without a throttle, test a ceiling 1/sec higher
 const pacer = {
@@ -152,8 +152,9 @@ export async function api<T>(
   }
 }
 
-async function listUnreadIds(
+async function listScanIds(
   token: string,
+  q: string,
   limit: number,
   signal: AbortSignal,
   onFound: (n: number) => void,
@@ -162,10 +163,7 @@ async function listUnreadIds(
   let pageToken = "";
   do {
     if (signal.aborted) throw new DOMException("Scan cancelled", "AbortError");
-    const params = new URLSearchParams({
-      q: "is:unread -in:trash -in:spam",
-      maxResults: "500",
-    });
+    const params = new URLSearchParams({ q, maxResults: "500" });
     if (pageToken) params.set("pageToken", pageToken);
     const page = await api<{
       messages?: { id: string }[];
@@ -189,11 +187,16 @@ function parseFrom(from: string) {
 export async function scanInbox(
   token: string,
   limit: number, // 0 = no limit
+  unreadOnly: boolean,
   onProgress: (done: number, total: number) => void,
   signal: AbortSignal,
   onFound: (n: number) => void = () => {},
 ): Promise<Sender[]> {
-  const ids = await listUnreadIds(token, limit, signal, onFound);
+  // "All mail" skips Sent and Drafts, since grouping those by sender would just list the user.
+  const q = unreadOnly
+    ? "is:unread -in:trash -in:spam"
+    : "-in:trash -in:spam -in:sent -in:drafts";
+  const ids = await listScanIds(token, q, limit, signal, onFound);
   onProgress(0, ids.length);
   const senders = new Map<string, Sender>();
   let next = 0;
