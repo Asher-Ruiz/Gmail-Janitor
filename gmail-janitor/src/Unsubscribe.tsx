@@ -3,6 +3,8 @@ import type { Sender } from './scan'
 import Progress from './Progress'
 import { assess, caution, loadRequested, rateText, saveRequested, sendUnsubscribe } from './unsub'
 
+const clock = () => Date.now() // read inside event handlers only, never during render
+
 type Props = { senders: Sender[]; allSenders: Sender[]; onDone: () => void }
 
 function Who({ s, children }: { s: Sender; children?: ReactNode }) {
@@ -22,7 +24,7 @@ export default function Unsubscribe({ senders, allSenders, onDone }: Props) {
   const [progress, setProgress] = useState({ done: 0, total: 0 })
   const [startedAt, setStartedAt] = useState(0)
   const [results, setResults] = useState({ sent: 0, failed: 0 })
-  const requested = useMemo(loadRequested, [])
+  const requested = useMemo(() => loadRequested(), [])
 
   // How long the scan covered, so "emails per month" is an honest estimate.
   const windowDays = useMemo(() => {
@@ -65,7 +67,7 @@ export default function Unsubscribe({ senders, allSenders, onDone }: Props) {
   const send = async () => {
     const chosen = [...eligible, ...risky].filter(({ s }) => picked.has(s.address))
     setPhase('sending')
-    setStartedAt(Date.now())
+    setStartedAt(clock())
     setProgress({ done: 0, total: chosen.length })
     let sent = 0
     let failed = 0
@@ -85,7 +87,7 @@ export default function Unsubscribe({ senders, allSenders, onDone }: Props) {
 
   if (phase === 'sending') {
     return (
-      <div className="center">
+      <div>
         <h1>Sending requests</h1>
         <Progress done={progress.done} total={progress.total} startedAt={startedAt} verb="Sent" noun="requests" />
       </div>
@@ -94,7 +96,7 @@ export default function Unsubscribe({ senders, allSenders, onDone }: Props) {
 
   if (phase === 'done') {
     return (
-      <div className="center">
+      <div>
         <h1>{results.sent.toLocaleString()} {results.sent === 1 ? 'request' : 'requests'} sent</h1>
         <p className="lead">
           We can’t see each sender’s reply, so we can’t promise it worked. Most senders stop within a couple of days.
@@ -116,11 +118,9 @@ export default function Unsubscribe({ senders, allSenders, onDone }: Props) {
   return (
     <>
       <h1>Stop these senders from coming back?</h1>
-      <p className="lead">
-        You just cleared mail from {senders.length.toLocaleString()} senders.{' '}
-        {eligible.length > 0
-          ? `For ${eligible.length.toLocaleString()} of them, we can send an unsubscribe request for you. Choose which ones.`
-          : 'We couldn’t verify any of them, but you can still choose to try some below.'}
+      <p className="meta">
+        {senders.length.toLocaleString()} senders cleared.{' '}
+        {eligible.length > 0 ? `${eligible.length.toLocaleString()} can be unsubscribed safely.` : 'None could be verified.'}
       </p>
 
       {eligible.length > 0 && (

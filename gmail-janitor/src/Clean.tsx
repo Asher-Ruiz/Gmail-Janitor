@@ -32,7 +32,7 @@ function DateConfirm({ total, dateLabel, includeRead, onConfirm, onBack }: {
 }) {
   const [sure, setSure] = useState(false)
   return (
-    <div className="center">
+    <div>
       <h1>Move {total.toLocaleString()} emails to Trash?</h1>
       <p className="lead">
         These are all the {includeRead ? '' : 'unread '}emails you received before {dateLabel}. Starred and important emails, drafts, and emails
@@ -60,7 +60,7 @@ export default function Clean({
 
   if (stage === 'planning') {
     return (
-      <div className="center">
+      <div>
         <h1>Counting what would move</h1>
         {mode === 'date' ? (
           <p className="hint">Found {work.done.toLocaleString()} emails so far…</p>
@@ -76,7 +76,7 @@ export default function Clean({
     const total = plan.ids.length
     if (total === 0) {
       return (
-        <div className="center">
+        <div>
           <h1>Nothing to move</h1>
           <p className="lead">
             {mode === 'date'
@@ -91,7 +91,7 @@ export default function Clean({
       return <DateConfirm total={total} dateLabel={dateLabel} includeRead={includeRead} onConfirm={onConfirm} onBack={onBack} />
     }
     return (
-      <div className="center">
+      <div>
         <h1>Move {total.toLocaleString()} messages to Trash?</h1>
         <p className="lead">
           This covers {includeRead ? 'read and unread' : 'unread'} mail from {plan.perSender.length.toLocaleString()} senders,
@@ -113,7 +113,7 @@ export default function Clean({
 
   if (stage === 'working') {
     return (
-      <div className="center">
+      <div>
         <h1>Moving mail to Trash</h1>
         <Progress done={work.done} total={work.total} startedAt={startedAt} verb="Moved" noun="messages" note={note} />
         <button className="btn ghost" onClick={onCancel}>Stop</button>
@@ -122,7 +122,7 @@ export default function Clean({
   }
 
   return (
-    <div className="center">
+    <div>
       <h1>Moved {moved.toLocaleString()} messages to Trash</h1>
       <p className="lead">Open Trash in Gmail to review or restore them. Gmail empties Trash on its own after 30 days.</p>
       {unreadTotal !== null && (

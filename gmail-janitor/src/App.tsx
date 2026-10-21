@@ -18,6 +18,7 @@ import { offers } from './unsub'
 
 const KEY = 'gmail-janitor-client-id' // a Client ID is public, so localStorage is fine
 const ORIGIN = window.location.origin
+const capFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1) // display only; addresses ignore case
 
 export default function App() {
   const [clientId, setClientId] = useState(() => localStorage.getItem(KEY) ?? '')
@@ -267,13 +268,14 @@ export default function App() {
   const showGuide = !clientId || route === '#/guide'
 
   return (
-    <main className="page">
-      <header className="brand">Gmail Janitor</header>
+    <div className="page">
+      <a className="skip" href="#main">Skip to main content</a>
 
       {profile && expiresAt > 0 && (
         <SessionBar expiresAt={expiresAt} waiting={waiting} busy={renewing} error={renewError} onRenew={renewNow} />
       )}
 
+      <main id="main">
       {showGuide && (
         <Guide
           hasClientId={Boolean(clientId)}
@@ -284,12 +286,8 @@ export default function App() {
       )}
 
       {!showGuide && clientId && !profile && (
-        <section className="card center">
-          <h1>Ready when you are</h1>
-          <p className="lead">
-            Google will ask you to approve access, and may show a warning screen first. That is normal for a
-            connection you created yourself. You can remove access anytime in your Google account.
-          </p>
+        <section className="card">
+          <h1>Sign in to your Gmail account</h1>
           <button className="btn" onClick={connect} disabled={busy}>
             {busy ? 'Waiting for Google…' : 'Sign in with Google'}
           </button>
@@ -298,65 +296,59 @@ export default function App() {
               {error} Check that your email is a test user and that the authorized origin is {ORIGIN}.
             </p>
           )}
-          <a className="link-block" href="#/guide">Not sure what to expect? See the step-by-step guide</a>
+          <a className="link-block" href="#/guide">What to expect when Google asks for permission</a>
           <button className="link" onClick={resetId}>Use a different Client ID</button>
         </section>
       )}
 
-      {!showGuide && profile && !senders && mode === 'senders' && (
-        <section className="card center">
-          <h1>You’re connected</h1>
-          <p className="lead">
-            Signed in as <b>{profile.emailAddress}</b>. Scanning reads each message’s sender and labels, never its text.
-          </p>
-          {!scanning && scanScope === 'unread' && unreadTotal !== null && (
-            <p className="lead">
-              You have about <b>{unreadTotal.toLocaleString()}</b> unread messages. We’ll clear them in rounds: scan a
-              batch, remove what you don’t want, then scan the next.
-            </p>
-          )}
-          {!scanning && scanScope === 'all' && (
-            <p className="lead">
-              We’ll work in rounds: scan a batch of your newest mail, remove what you don’t want, then scan the next.
-            </p>
-          )}
-          {scanning ? (
-            <>
-              <h2 className="phase">
-                {progress.total ? 'Step 2 of 2: reading each sender' : `Step 1 of 2: finding your ${scanScope === 'unread' ? 'unread ' : ''}messages`}
-              </h2>
-              {progress.total ? (
-                <Progress done={progress.done} total={progress.total} startedAt={startedAt}
-                  verb="Read" noun="messages" note={slowdown ? SLOWDOWN_NOTE : undefined} />
-              ) : (
-                <p className="hint">{found ? `Found ${found.toLocaleString()} so far…` : 'Starting…'}</p>
-              )}
-              <button className="btn" onClick={() => cancelWork()}>Cancel scan</button>
-            </>
-          ) : (
-            <>
-              <ScopeToggle value={scanScope} onChange={setScanScope} />
-              <label className="pick">
-                Scan the newest{' '}
-                <select value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
-                  <option value={1000}>1,000</option>
-                  <option value={5000}>5,000</option>
-                  <option value={10000}>10,000</option>
-                </select>{' '}
-                {scanScope === 'unread' ? 'unread ' : ''}messages
-              </label>
-              <button className="btn" onClick={expired ? connect : scan} disabled={busy}>
-                {expired ? 'Sign in again' : 'Scan my inbox'}
-              </button>
-            </>
-          )}
-          {error && <p className="error" role="alert">{error}</p>}
-          <button className="link" onClick={resetId}>Disconnect</button>
-        </section>
-      )}
-
-      {!showGuide && profile && !senders && !scanning && mode === 'senders' && stage === 'review' && (
-        <DateClean scope={dateScope} onScope={setDateScope} onPrepare={prepareDate} />
+      {!showGuide && profile && !senders && mode === 'senders' && stage === 'review' && (
+        <div className="cards">
+          <section className="card">
+            <div className="card-head">
+              <h1>{capFirst(profile.emailAddress)}</h1>
+              <ScopeToggle value={scanScope} onChange={setScanScope} disabled={scanning} />
+            </div>
+            {!scanning && scanScope === 'unread' && unreadTotal !== null && (
+              <p className="meta">About {unreadTotal.toLocaleString()} unread messages</p>
+            )}
+            {scanning ? (
+              <>
+                <h2 className="phase">
+                  {progress.total ? 'Step 2 of 2: reading each sender' : `Step 1 of 2: finding your ${scanScope === 'unread' ? 'unread ' : ''}messages`}
+                </h2>
+                {progress.total ? (
+                  <Progress done={progress.done} total={progress.total} startedAt={startedAt}
+                    verb="Read" noun="messages" note={slowdown ? SLOWDOWN_NOTE : undefined} />
+                ) : (
+                  <p className="hint">{found ? `Found ${found.toLocaleString()} so far…` : 'Starting…'}</p>
+                )}
+                <div className="actions">
+                  <button className="btn ghost" onClick={() => cancelWork()}>Cancel scan</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <label className="pick">
+                  Scan the newest{' '}
+                  <select value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
+                    <option value={1000}>1,000</option>
+                    <option value={5000}>5,000</option>
+                    <option value={10000}>10,000</option>
+                  </select>{' '}
+                  {scanScope === 'unread' ? 'unread ' : ''}messages
+                </label>
+                <div className="actions">
+                  <button className="btn" onClick={expired ? connect : scan} disabled={busy}>
+                    {expired ? 'Sign in again' : 'Scan my inbox'}
+                  </button>
+                  <button className="btn danger-outline" onClick={resetId}>Disconnect</button>
+                </div>
+              </>
+            )}
+            {error && <p className="error" role="alert">{error}</p>}
+          </section>
+          <DateClean scope={dateScope} onScope={setDateScope} onPrepare={prepareDate} disabled={scanning} />
+        </div>
       )}
 
       {!showGuide && profile && mode === 'date' && stage !== 'review' && stage !== 'unsub' && (
@@ -429,6 +421,7 @@ export default function App() {
           )}
         </section>
       )}
-    </main>
+      </main>
+    </div>
   )
 }
