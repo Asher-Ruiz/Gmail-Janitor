@@ -67,7 +67,9 @@ export default function Clean({
         ) : (
           <Progress done={work.done} total={work.total} startedAt={startedAt} verb="Checked" noun="senders" note={note} />
         )}
-        <button className="btn ghost" onClick={onCancel}>Cancel</button>
+        <div className="actions">
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+        </div>
       </div>
     )
   }
@@ -83,7 +85,9 @@ export default function Clean({
               ? `There are no ${includeRead ? '' : 'unread '}emails from before ${dateLabel} that aren’t starred or important.`
               : `None of the selected senders have ${includeRead ? '' : 'unread '}mail that isn’t starred.`}
           </p>
-          <button className="btn" onClick={onBack}>Go back</button>
+          <div className="actions">
+            <button className="btn" onClick={onBack}>Go back</button>
+          </div>
         </div>
       )
     }
@@ -116,7 +120,9 @@ export default function Clean({
       <div>
         <h1>Moving mail to Trash</h1>
         <Progress done={work.done} total={work.total} startedAt={startedAt} verb="Moved" noun="messages" note={note} />
-        <button className="btn ghost" onClick={onCancel}>Stop</button>
+        <div className="actions">
+          <button className="btn ghost" onClick={onCancel}>Stop</button>
+        </div>
       </div>
     )
   }
@@ -128,7 +134,9 @@ export default function Clean({
       {unreadTotal !== null && (
         <p className="lead">About {unreadTotal.toLocaleString()} unread messages are left in your mailbox.</p>
       )}
-      <button className="btn" onClick={onFinish}>{mode === 'date' ? 'Back to start' : 'Scan the next batch'}</button>
+      <div className="actions">
+        <button className="btn" onClick={onFinish}>{mode === 'date' ? 'Back to start' : 'Scan the next batch'}</button>
+      </div>
     </div>
   )
 }

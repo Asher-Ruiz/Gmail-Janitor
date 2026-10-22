@@ -110,7 +110,9 @@ export default function Unsubscribe({ senders, allSenders, onDone }: Props) {
               ' Your browser blocked these requests. An ad blocker or privacy setting is a common cause. Try again in a private window.'}
           </p>
         )}
-        <button className="btn" onClick={onDone}>Finish</button>
+        <div className="actions">
+          <button className="btn" onClick={onDone}>Finish</button>
+        </div>
       </div>
     )
   }

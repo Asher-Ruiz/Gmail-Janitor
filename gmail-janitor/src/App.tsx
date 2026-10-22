@@ -13,6 +13,7 @@ import { buildDatePlan, buildPlan, trashMessages, type Plan } from './cleanup'
 import Guide from './Guide'
 import DateClean from './DateClean'
 import ScopeToggle, { type Scope } from './ScopeToggle'
+import Reveal from './Reveal'
 import Unsubscribe from './Unsubscribe'
 import { offers } from './unsub'
 
@@ -288,16 +289,18 @@ export default function App() {
       {!showGuide && clientId && !profile && (
         <section className="card">
           <h1>Sign in to your Gmail account</h1>
-          <button className="btn" onClick={connect} disabled={busy}>
-            {busy ? 'Waiting for Google…' : 'Sign in with Google'}
-          </button>
+          <a className="link-block" href="#/guide">What to expect when Google asks for permission</a>
           {error && (
             <p className="error" role="alert">
               {error} Check that your email is a test user and that the authorized origin is {ORIGIN}.
             </p>
           )}
-          <a className="link-block" href="#/guide">What to expect when Google asks for permission</a>
-          <button className="link" onClick={resetId}>Use a different Client ID</button>
+          <div className="actions">
+            <button className="btn quiet" onClick={resetId}>Use a different Client ID</button>
+            <button className="btn" onClick={connect} disabled={busy}>
+              {busy ? 'Waiting for Google…' : 'Sign in with Google'}
+            </button>
+          </div>
         </section>
       )}
 
@@ -308,9 +311,9 @@ export default function App() {
               <h1>{capFirst(profile.emailAddress)}</h1>
               <ScopeToggle value={scanScope} onChange={setScanScope} disabled={scanning} />
             </div>
-            {!scanning && scanScope === 'unread' && unreadTotal !== null && (
-              <p className="meta">About {unreadTotal.toLocaleString()} unread messages</p>
-            )}
+            <Reveal show={!scanning && scanScope === 'unread' && unreadTotal !== null}>
+              <p className="meta">About {unreadTotal?.toLocaleString() ?? '…'} unread messages</p>
+            </Reveal>
             {scanning ? (
               <>
                 <h2 className="phase">
@@ -331,6 +334,7 @@ export default function App() {
                 <label className="pick">
                   Scan the newest{' '}
                   <select value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
+                    <option value={500}>500</option>
                     <option value={1000}>1,000</option>
                     <option value={5000}>5,000</option>
                     <option value={10000}>10,000</option>
@@ -338,10 +342,10 @@ export default function App() {
                   {scanScope === 'unread' ? 'unread ' : ''}messages
                 </label>
                 <div className="actions">
+                  <button className="btn danger-outline" onClick={resetId}>Disconnect</button>
                   <button className="btn" onClick={expired ? connect : scan} disabled={busy}>
                     {expired ? 'Sign in again' : 'Scan my inbox'}
                   </button>
-                  <button className="btn danger-outline" onClick={resetId}>Disconnect</button>
                 </div>
               </>
             )}

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import ScopeToggle, { type Scope } from './ScopeToggle'
+import Reveal from './Reveal'
 
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -37,11 +38,15 @@ export default function DateClean({ scope, onScope, onPrepare, disabled }: Props
         Everything before{' '}
         <input type="date" value={date} max={iso(new Date())} disabled={disabled} onChange={(e) => setDate(e.target.value)} />
       </label>
-      {isRecent && <p className="hint">That date is fairly recent, so this would include mail from the last few months.</p>}
-      <button className="btn neutral" disabled={disabled || !date} onClick={() => onPrepare(date)}>Count these emails</button>
-      {(disabled || !date) && (
+      <Reveal show={isRecent}>
+        <p className="hint">That date is fairly recent, so this would include mail from the last few months.</p>
+      </Reveal>
+      <Reveal show={disabled || !date}>
         <p className="hint">{disabled ? 'Available when the scan finishes.' : 'Pick a date to continue.'}</p>
-      )}
+      </Reveal>
+      <div className="actions">
+        <button className="btn" disabled={disabled || !date} onClick={() => onPrepare(date)}>Count these emails</button>
+      </div>
     </section>
   )
 }

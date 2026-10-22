@@ -44,7 +44,9 @@ export default function Review({ senders, selected, onChange, includeRead, onCle
       <>
         <h1>No senders found</h1>
         <p className="lead">The scan found no messages to group. Try “All mail” or a larger batch.</p>
-        <button className="btn" onClick={onRescan}>Scan again</button>
+        <div className="actions">
+          <button className="btn" onClick={onRescan}>Scan again</button>
+        </div>
       </>
     )
   }
@@ -95,9 +97,11 @@ export default function Review({ senders, selected, onChange, includeRead, onCle
             ? 'Check at least one sender to continue.'
             : `${picked.length.toLocaleString()} senders selected, ${pickedMessages.toLocaleString()} messages`}
         </span>
-        <button className="btn danger" disabled={picked.length === 0} onClick={onClean}>Move to Trash</button>
+        <div className="actions">
+          <button className="btn quiet" onClick={onRescan}>Scan again</button>
+          <button className="btn danger" disabled={picked.length === 0} onClick={onClean}>Move to Trash</button>
+        </div>
       </div>
-      <button className="link" onClick={onRescan}>Scan again</button>
     </>
   )
 }

@@ -8,7 +8,7 @@ type Props = { value: Scope; onChange: (s: Scope) => void; disabled?: boolean }
 export default function ScopeToggle({ value, onChange, disabled }: Props) {
   const name = useId()
   return (
-    <fieldset className="seg" disabled={disabled}>
+    <fieldset className="seg" data-value={value} disabled={disabled}>
       <legend className="sr-only">Which mail</legend>
       {(['all', 'unread'] as const).map((s) => (
         <label key={s}>
